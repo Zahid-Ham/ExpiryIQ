@@ -49,7 +49,7 @@ export function DailyBrief({ records }: DailyBriefProps) {
         // 1. Check if today's briefing is already stored in Firestore cache
         const cachedDoc = await getDocument("compliance_briefs", briefDocId)
         if (cachedDoc) {
-          setBrief(cachedDoc as DailyBriefData)
+          setBrief(cachedDoc as unknown as DailyBriefData)
           return
         }
 
