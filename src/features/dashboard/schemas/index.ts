@@ -38,7 +38,8 @@ export const recordSchema = z.object({
     uploadedBy: z.string(),
     downloadUrl: z.string(),
     type: z.string()
-  })).optional()
+  })).optional(),
+  isDemo: z.boolean().optional()
 })
 
 export type ExpiryRecord = z.infer<typeof recordSchema>

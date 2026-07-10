@@ -58,12 +58,181 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [records, setRecords] = React.useState<ExpiryRecord[]>([])
   const [recentSearches, setRecentSearches] = React.useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = React.useState(0)
+  const [isDemoMode, setIsDemoMode] = React.useState(false)
 
   // Live Firestore notifications states
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([])
   const [notificationFilter, setNotificationFilter] = React.useState<"all" | "unread">("all")
 
   const sidebarRef = React.useRef<HTMLDivElement>(null)
+
+  // Check if demo mode is enabled
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const cleared = localStorage.getItem("expiry_iq_demo_cleared")
+      setIsDemoMode(cleared !== "true")
+    }
+  }, [])
+
+  // Automatically seed database with mock records if demo mode is enabled and records are empty
+  React.useEffect(() => {
+    if (!user?.uid || !isDemoMode) return
+
+    const seedDemoData = async () => {
+      const demoRecordsExist = records.some(r => r.isDemo === true)
+      if (records.length === 0 && !demoRecordsExist) {
+        const loadToast = toast.loading("Loading workspace demo data from Firestore...")
+        try {
+          type DemoRecord = Omit<ExpiryRecord, "userId" | "status" | "createdAt" | "updatedAt">
+          const DEMO_RECORDS: DemoRecord[] = [
+            {
+              title: "AWS Cloud Infrastructure",
+              category: "Software License",
+              description: "Production web server nodes and container instances.",
+              expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "critical",
+              owner: "devops@company.com",
+              department: "Engineering",
+              vendor: "Amazon Web Services",
+              cost: 1450,
+              renewalFrequency: "monthly",
+              reminderDays: [7, 15, 30],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "Office 365 Enterprise",
+              category: "Software License",
+              description: "Corporate office tools and email inbox licenses.",
+              expiryDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "high",
+              owner: "admin@company.com",
+              department: "IT Operations",
+              vendor: "Microsoft Corp",
+              cost: 890,
+              renewalFrequency: "annually",
+              reminderDays: [7, 30],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "SSL Wildcard Certificate",
+              category: "Certificate",
+              description: "TLS wildcard cert covering all production subdomains.",
+              expiryDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "critical",
+              owner: "security@company.com",
+              department: "Engineering",
+              vendor: "DigiCert Inc",
+              cost: 290,
+              renewalFrequency: "annually",
+              reminderDays: [7, 14, 30],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "expiry-iq.com Domain Registry",
+              category: "Domain Name",
+              description: "Primary corporate domain registrar listing.",
+              expiryDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "medium",
+              owner: "domain-ops@company.com",
+              department: "Marketing",
+              vendor: "GoDaddy Inc",
+              cost: 15,
+              renewalFrequency: "annually",
+              reminderDays: [30],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "Corporate Headquarters Lease",
+              category: "Vendor Agreement",
+              description: "Rental lease agreement for the main office floors.",
+              expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "high",
+              owner: "facilities@company.com",
+              department: "Operations",
+              vendor: "WeWork Global",
+              cost: 12000,
+              renewalFrequency: "annually",
+              reminderDays: [60, 90],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "Stripe Payment Processing",
+              category: "API Service",
+              description: "Live mode API key subscription and payment gateway agreement.",
+              expiryDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "high",
+              owner: "finance@company.com",
+              department: "Finance",
+              vendor: "Stripe Inc",
+              cost: 340,
+              renewalFrequency: "annually",
+              reminderDays: [30, 60],
+              createdBy: user.uid,
+              isDemo: true
+            },
+            {
+              title: "HR Compliance Training Contract",
+              category: "Contract",
+              description: "Annual third-party compliance training vendor agreement.",
+              expiryDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              priority: "critical",
+              owner: "hr@company.com",
+              department: "HR",
+              vendor: "Compliance HQ Ltd",
+              cost: 2200,
+              renewalFrequency: "annually",
+              reminderDays: [30],
+              createdBy: user.uid,
+              isDemo: true
+            }
+          ]
+
+          for (const item of DEMO_RECORDS) {
+            await RecordsService.createRecord(user.uid, item)
+          }
+          toast.dismiss(loadToast)
+          toast.success("Workspace loaded with sandbox data.")
+        } catch (err) {
+          console.error("Failed to seed demo data:", err)
+          toast.dismiss(loadToast)
+        }
+      }
+    }
+
+    seedDemoData()
+  }, [user?.uid, isDemoMode, records])
+
+  const handleClearDemoData = async () => {
+    const loadToast = toast.loading("Clearing sandbox demo data...")
+    try {
+      const demoRecordIds = records.filter(r => r.isDemo === true).map(r => r.id!)
+      if (demoRecordIds.length > 0) {
+        await RecordsService.deleteRecordsBatch(demoRecordIds)
+      }
+      
+      // Wipe cache references
+      localStorage.removeItem("expiry_iq_summary_hash")
+      localStorage.removeItem("expiry_iq_summary_content")
+      localStorage.removeItem("expiry_iq_risk_hash")
+      localStorage.removeItem("expiry_iq_risk_content")
+      localStorage.removeItem("expiry_iq_reco_hash")
+      localStorage.removeItem("expiry_iq_reco_content")
+
+      localStorage.setItem("expiry_iq_demo_cleared", "true")
+      setIsDemoMode(false)
+      toast.dismiss(loadToast)
+      toast.success("Workspace connected to your live Firestore database!")
+    } catch (err) {
+      console.error(err)
+      toast.dismiss(loadToast)
+      toast.error("Failed to clear demo data. Please try again.")
+    }
+  }
 
   // Load search history
   React.useEffect(() => {
@@ -371,6 +540,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           onOpenSearch={() => setSearchOpen(true)}
           hasUnreadNotifications={hasUnread}
         />
+
+        {/* Demo Mode Banner */}
+        {isDemoMode && (
+          <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-amber-500 text-xs shrink-0">●</span>
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium truncate">
+                <span className="font-bold">Demo Mode Active</span> — You&apos;re viewing sandbox data. Records are seeded automatically to showcase the workspace.
+              </p>
+            </div>
+            <button
+              onClick={handleClearDemoData}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white transition-colors whitespace-nowrap"
+            >
+              Clear Demo Data
+            </button>
+          </div>
+        )}
 
         {/* Dashboard Content Container */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/10">
